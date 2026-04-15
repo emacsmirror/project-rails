@@ -584,6 +584,30 @@ NEWFILE-TEMPLATE is used to create new files if the choice doesn't exist."
 
 ;;; Current resource detection
 
+(defun project-rails--app-relative-subpath (file)
+  "Return the subpath within app/ for FILE, or nil if FILE is not an app/*.rb file.
+Works with both absolute paths and paths relative to the project root.
+Example: /proj/app/models/user.rb -> models/user
+Example: app/models/user.rb       -> models/user"
+  (when (and file (string-match "\\(?:^\\|/\\)app/\\(.*\\)\\.rb$" file))
+    (match-string 1 file)))
+
+(defun project-rails--test-path-from-file (file)
+  "Return the test path for FILE, or nil if FILE is not a Rails app source file.
+FILE may be absolute or relative to the project root.
+Example: app/models/project.rb -> test/models/project_test.rb"
+  (let ((subpath (project-rails--app-relative-subpath file)))
+    (when subpath
+      (concat "test/" subpath "_test.rb"))))
+
+(defun project-rails--spec-path-from-file (file)
+  "Return the spec path for FILE, or nil if FILE is not a Rails app source file.
+FILE may be absolute or relative to the project root.
+Example: app/models/project.rb -> spec/models/project_spec.rb"
+  (let ((subpath (project-rails--app-relative-subpath file)))
+    (when subpath
+      (concat "spec/" subpath "_spec.rb"))))
+
 (defun project-rails-current-resource-name ()
   "Return a resource name extracted from the current file name."
   (let* ((file-name (buffer-file-name))
@@ -644,19 +668,27 @@ NEWFILE-TEMPLATE is used to create new files if the choice doesn't exist."
 
 ;;;###autoload
 (defun project-rails-find-current-spec ()
-  "Find a spec for the current resource."
+  "Find the spec file for the current buffer's file.
+Maps app/foo/bar.rb directly to spec/foo/bar_spec.rb.
+Falls back to `project-rails-find-spec' if no direct mapping exists."
   (interactive)
-  (project-rails-find-current-resource "spec/"
-      "\\(.*\\(?:%2$s/\\)*%1$s\\)_spec\\.rb$"
-    #'project-rails-find-spec))
+  (let* ((file (buffer-file-name))
+         (spec-path (project-rails--spec-path-from-file file)))
+    (if spec-path
+        (find-file (project-rails-expand-root spec-path))
+      (project-rails-find-spec))))
 
 ;;;###autoload
 (defun project-rails-find-current-test ()
-  "Find a test for the current resource."
+  "Find the test file for the current buffer's file.
+Maps app/foo/bar.rb directly to test/foo/bar_test.rb.
+Falls back to `project-rails-find-test' if no direct mapping exists."
   (interactive)
-  (project-rails-find-current-resource "test/"
-      "\\(.*\\(?:%2$s/\\)*%1$s\\)_test\\.rb$"
-    #'project-rails-find-test))
+  (let* ((file (buffer-file-name))
+         (test-path (project-rails--test-path-from-file file)))
+    (if test-path
+        (find-file (project-rails-expand-root test-path))
+      (project-rails-find-test))))
 
 ;;;###autoload
 (defun project-rails-find-current-fixture ()
